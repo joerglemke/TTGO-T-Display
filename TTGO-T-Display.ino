@@ -1,34 +1,14 @@
 #include <TFT_eSPI.h>
-#include <SPI.h>
 #include "WiFi.h"
-#include <Wire.h>
 #include <Button2.h>
 #include "esp_adc_cal.h"
+
 #include "bmp.h"
 
-#ifndef TFT_DISPOFF
-#define TFT_DISPOFF 0x28
-#endif
+TFT_eSPI tft = TFT_eSPI();
 
-#ifndef TFT_SLPIN
-#define TFT_SLPIN   0x10
-#endif
-
-#define TFT_MOSI            19
-#define TFT_SCLK            18
-#define TFT_CS              5
-#define TFT_DC              16
-#define TFT_RST             23
-
-#define TFT_BL          4  // Display backlight control pin
-#define ADC_EN          14
-#define ADC_PIN         34
-#define BUTTON_1        35
-#define BUTTON_2        0
-
-TFT_eSPI tft = TFT_eSPI(135, 240); // Invoke custom library
-Button2 btn1(BUTTON_1);
-Button2 btn2(BUTTON_2);
+Button2 btn1(RIGHT_BUTTON);
+Button2 btn2(LEFT_BUTTON);
 
 char buff[512];
 int vref = 1100;
@@ -47,7 +27,7 @@ void showVoltage()
     static uint64_t timeStamp = 0;
     if (millis() - timeStamp > 1000) {
         timeStamp = millis();
-        uint16_t v = analogRead(ADC_PIN);
+        uint16_t v = analogRead(VBAT);
         float battery_voltage = ((float)v / 4095.0) * 2.0 * 3.3 * (vref / 1000.0);
         String voltage = "Voltage :" + String(battery_voltage) + "V";
         Serial.println(voltage);
@@ -55,6 +35,39 @@ void showVoltage()
         tft.setTextDatum(MC_DATUM);
         tft.drawString(voltage,  tft.width() / 2, tft.height() / 2 );
     }
+}
+
+void wifi_scan()
+{
+    tft.setTextColor(TFT_GREEN, TFT_BLACK);
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextSize(1);
+
+    tft.drawString("Scan Network", tft.width() / 2, tft.height() / 2);
+
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+    delay(100);
+
+    int16_t n = WiFi.scanNetworks();
+    tft.fillScreen(TFT_BLACK);
+    if (n == 0) {
+        tft.drawString("no networks found", tft.width() / 2, tft.height() / 2);
+    } else {
+        tft.setTextDatum(TL_DATUM);
+        tft.setCursor(0, 0);
+        Serial.printf("Found %d net\n", n);
+        for (int i = 0; i < n; ++i) {
+            sprintf(buff,
+                    "[%d]:%s(%d)",
+                    i + 1,
+                    WiFi.SSID(i).c_str(),
+                    WiFi.RSSI(i));
+            tft.println(buff);
+        }
+    }
+    WiFi.mode(WIFI_OFF);
 }
 
 void button_init()
@@ -90,39 +103,6 @@ void button_loop()
 {
     btn1.loop();
     btn2.loop();
-}
-
-void wifi_scan()
-{
-    tft.setTextColor(TFT_GREEN, TFT_BLACK);
-    tft.fillScreen(TFT_BLACK);
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextSize(1);
-
-    tft.drawString("Scan Network", tft.width() / 2, tft.height() / 2);
-
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    delay(100);
-
-    int16_t n = WiFi.scanNetworks();
-    tft.fillScreen(TFT_BLACK);
-    if (n == 0) {
-        tft.drawString("no networks found", tft.width() / 2, tft.height() / 2);
-    } else {
-        tft.setTextDatum(TL_DATUM);
-        tft.setCursor(0, 0);
-        Serial.printf("Found %d net\n", n);
-        for (int i = 0; i < n; ++i) {
-            sprintf(buff,
-                    "[%d]:%s(%d)",
-                    i + 1,
-                    WiFi.SSID(i).c_str(),
-                    WiFi.RSSI(i));
-            tft.println(buff);
-        }
-    }
-    WiFi.mode(WIFI_OFF);
 }
 
 void setup()
